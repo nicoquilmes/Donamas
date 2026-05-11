@@ -292,6 +292,11 @@
       <label>Zona / Barrio</label>
       <input type="text" id="pub-zona" placeholder="Ej. Palermo, CABA">
     </div>
+    <div class="form-group">
+      <label>Tu WhatsApp <span style="color:var(--muted);font-weight:300">(para recibir solicitudes)</span></label>
+      <input type="tel" id="pub-whatsapp" placeholder="Ej. 5491112345678">
+      <div style="font-size:0.75rem;color:var(--muted);margin-top:0.3rem;">Incluí el código de país sin el +. Ej: 549 (Argentina) + número</div>
+    </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal('publicar')">Cancelar</button>
       <button class="btn-submit" id="btn-publicar" onclick="publicarDonacion()">Publicar</button>
@@ -396,7 +401,7 @@ function renderGrid() {
             <span>${d.nombre} · 📍 ${d.zona}</span>
           </div>
           <button class="btn-solicitar" ${d.solicitado ? 'disabled' : ''} onclick="abrirSolicitar('${d.id}')">
-            ${d.solicitado ? '✓ Solicitado' : 'Solicitar'}
+            ${d.solicitado ? '✓ Solicitado' : (d.whatsapp ? '💬 Solicitar' : 'Solicitar')}
           </button>
         </div>
       </div>
@@ -471,6 +476,7 @@ async function publicarDonacion() {
   const titulo = document.getElementById('pub-titulo').value.trim();
   const descripcion = document.getElementById('pub-desc').value.trim();
   const zona = document.getElementById('pub-zona').value.trim();
+  const whatsapp = document.getElementById('pub-whatsapp').value.trim().replace(/\D/g, '');
 
   if (!nombre || !cat || !titulo || !descripcion || !zona) {
     showToast('⚠️ Por favor completa todos los campos'); return;
@@ -499,7 +505,7 @@ async function publicarDonacion() {
 
   // Guardar en base de datos
   const { error } = await db.from('donaciones').insert([{
-    nombre, cat, titulo, descripcion, zona, foto_url, visitas: 0, solicitado: false
+    nombre, cat, titulo, descripcion, zona, foto_url, visitas: 0, solicitado: false, whatsapp, whatsapp
   }]);
 
   btn.disabled = false; btn.textContent = 'Publicar';
@@ -512,6 +518,7 @@ async function publicarDonacion() {
   document.getElementById('pub-titulo').value = '';
   document.getElementById('pub-desc').value = '';
   document.getElementById('pub-zona').value = '';
+  document.getElementById('pub-whatsapp').value = '';
   removePhoto({ stopPropagation: () => {} });
 
   await cargarDonaciones();
@@ -521,6 +528,10 @@ async function publicarDonacion() {
 // ── SOLICITAR ARTÍCULO ────────────────────────────────────────
 function abrirSolicitar(id) {
   solicitandoId = id;
+  const d = donaciones.find(x => x.id === id);
+  // Show donante whatsapp info in modal if available
+  const info = document.getElementById('sol-donante-info');
+  if (info) info.textContent = d && d.whatsapp ? 'El donante será contactado por WhatsApp.' : 'El donante será notificado.';
   openModal('solicitar');
 }
 
@@ -552,7 +563,27 @@ async function solicitarArticulo() {
   document.getElementById('sol-comentario').value = '';
 
   await cargarDonaciones();
-  showToast('✅ ¡Solicitud enviada! El donante te contactará pronto.');
+
+  // Abrir WhatsApp al donante
+  const donacion = donaciones.find(x => x.id === solicitandoId);
+  if (donacion && donacion.whatsapp) {
+    const msg = encodeURIComponent(
+      '🙌 Hola ' + donacion.nombre + ', vi tu donación *' + donacion.titulo + '* en DonaMás y me interesa.
+
+' +
+      '👤 Mi nombre: ' + nombre + '
+' +
+      '📞 Mi contacto: ' + contacto +
+      (comentario ? '
+💬 ' + comentario : '') +
+      '
+
+¡Muchas gracias!'
+    );
+    window.open('https://wa.me/' + donacion.whatsapp + '?text=' + msg, '_blank');
+  }
+
+  showToast('✅ ¡Solicitud enviada! Abriendo WhatsApp...');
 }
 
 // ── TOAST ─────────────────────────────────────────────────────
